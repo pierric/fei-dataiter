@@ -1,3 +1,5 @@
+{-# Language TemplateHaskell #-}
+{-# Language DataKinds, RankNTypes #-}
 module MXNet.Core.IO.Internal.TH where
 
 import Data.List
@@ -5,6 +7,8 @@ import Data.Char
 import Data.Bifunctor
 import Text.ParserCombinators.ReadP
 import Language.Haskell.TH
+
+import MXNet.Core.Base
 import MXNet.Core.Base.Internal
 
 diInfoName (n,_,_,_,_,_) = n
@@ -15,24 +19,28 @@ diInfoArgT (_,_,_,_,n,_) = n
 diInfoArgD (_,_,_,_,_,n) = n
 
 registerDataIters :: Q [Dec]
-registerDataIters = runIO $ do
-    di <- mxListDataIters
-    concat <$> mapM register di
+registerDataIters = do 
+    dataiterInfo <- runIO (mxListDataIters >>= mapM info)
+    concat <$> mapM (uncurry makeDataIter) dataiterInfo
   where
-    register creator = do
+    info creator = do
         info <- mxDataIterGetIterInfo creator
         let name = diInfoName info
             argn = diInfoArgN info
             argt = diInfoArgT info
             args = nub $ zip argn argt
-        makeDataIter name args
+        return (name, args)
 
-makeDataIter :: String -> [(String, String)] -> IO [Dec]
+makeDataIter :: String -> [(String, String)] -> Q [Dec]
 makeDataIter name args = do
     let args' = map (second parseArgDesc) args
         (req, opt) = partition ((== Required) . snd . snd) args'
-
-        sig = SigD (mkName name) $ 
+        -- optargs 
+        dname = mkName name
+        ret = [t| IO DataIterHandle |]
+    sig <- sigD dname [t| forall kvs. (MatchKVList kvs '[], ShowKV kvs) => $(ret) |]
+    fun <- funD dname []
+    return [sig, fun]
 
 data ArgType = ArgString | ArgInt | ArgLong | ArgFloat | ArgBool | ArgShape | ArgEnum [String] | ArgTuple ArgType
     deriving (Eq, Show)
