@@ -1,5 +1,4 @@
 {-# Language TemplateHaskell #-}
-{-# Language DataKinds, RankNTypes #-}
 module MXNet.Core.IO.Internal.TH where
 
 import Data.List
@@ -20,27 +19,49 @@ diInfoArgD (_,_,_,_,_,n) = n
 
 registerDataIters :: Q [Dec]
 registerDataIters = do 
-    dataiterInfo <- runIO (mxListDataIters >>= mapM info)
+    dataiterInfo <- runIO (mxListDataIters >>= mapM info . zip [0..])
     concat <$> mapM (uncurry makeDataIter) dataiterInfo
   where
-    info creator = do
+    info (idx, creator) = do
         info <- mxDataIterGetIterInfo creator
         let name = diInfoName info
             argn = diInfoArgN info
             argt = diInfoArgT info
             args = nub $ zip argn argt
-        return (name, args)
+        return ((idx, name), args)
 
-makeDataIter :: String -> [(String, String)] -> Q [Dec]
-makeDataIter name args = do
+makeDataIter :: (Integer, String) -> [(String, String)] -> Q [Dec]
+makeDataIter (index, name) args = do
     let args' = map (second parseArgDesc) args
-        (req, opt) = partition ((== Required) . snd . snd) args'
-        -- optargs 
-        dname = mkName name
-        ret = [t| IO DataIterHandle |]
-    sig <- sigD dname [t| forall kvs. (MatchKVList kvs '[], ShowKV kvs) => $(ret) |]
-    fun <- funD dname []
-    return [sig, fun]
+        dname = mkName (deCap name)
+    let kvs = mkName "kvs"
+        cstName = mkName $ name ++ "_Args"
+        args = foldr add promotedNilT args'
+        typWithArgs = if null args' then [t| IO DataIterHandle |] else [t| HMap $(varT kvs) -> IO DataIterHandle |]
+    cst <- tySynD cstName [] args
+    sig <- sigD dname [t| (MatchKVList $(varT kvs) $(conT cstName), ShowKV $(varT kvs)) => $(typWithArgs) |]
+    let allargs = mkName "allargs"
+    fun <- funD dname [clause [varP allargs] (normalB [e| do{
+        args <- return (dump $(varE allargs));
+        len  <- return (fromIntegral $ length args);
+        (keys, vals) <- return (unzip args);
+        crts <- mxListDataIters;
+        checked $ mxDataIterCreateIter (crts !! $(litE $ integerL index)) len keys vals;
+    } |]) []]
+    return [cst, sig, fun]
+  where
+    deCap (x:xs) = (toLower x):xs
+    toTyp ArgString = [t| String |]
+    toTyp ArgInt    = [t| Int |]
+    toTyp ArgLong   = [t| Integer |]
+    toTyp ArgFloat  = [t| Float |]
+    toTyp ArgBool   = [t| Bool |]
+    toTyp ArgShape  = [t| [Int] |]
+    toTyp (ArgEnum v)  = [t| String |]
+    toTyp (ArgTuple t) = [t| [$(toTyp t)] |]
+    app t1 t2 = [t| $(toTyp t1)  -> $(t2) |]
+    add (nm,(at,_)) lst = let item = [t| $(litT (strTyLit nm)) ':= $(toTyp at) |]
+                          in appT (appT promotedConsT item) lst
 
 data ArgType = ArgString | ArgInt | ArgLong | ArgFloat | ArgBool | ArgShape | ArgEnum [String] | ArgTuple ArgType
     deriving (Eq, Show)
