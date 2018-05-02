@@ -31,10 +31,14 @@ library
       base >=4.7 && <5,
       template-haskell >= 2.10.0.0,
       streaming >= 0.1.4.5,
-      mxnet == 0.2.0.0
+      conduit >= 1.2 && < 1.3,
+      conduit-combinators >= 1.1.2 && < 1.3,
+      mxnet == 0.2.0.0,
+      mxnet-nn >= 0.0.1.3 && < 0.0.2
   exposed-modules:
       MXNet.Core.IO.Internal, 
-      MXNet.Core.IO.DataIter.Streaming
+      MXNet.Core.IO.DataIter.Streaming,
+      MXNet.Core.IO.DataIter.Conduit
   other-modules:
       Paths_mxnet_dataiter
       MXNet.Core.IO.Internal.TH
@@ -47,5 +51,13 @@ test-suite streaming
     main-is: streaming.hs
     hs-source-dirs: test
     build-depends: base>=4.7 && <5, hspec==2.*, streaming >= 0.1.4.5, mxnet == 0.2.0.0, mxnet-dataiter
+    default-language: Haskell2010
+    default-extensions: FlexibleContexts, DataKinds, TypeApplications
+
+test-suite conduit
+    type: exitcode-stdio-1.0
+    main-is: conduit.hs
+    hs-source-dirs: test
+    build-depends: base>=4.7 && <5, hspec==2.*, mxnet == 0.2.0.0, mxnet-dataiter
     default-language: Haskell2010
     default-extensions: FlexibleContexts, DataKinds, TypeApplications

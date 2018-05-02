@@ -6,8 +6,14 @@ extra-deps:
   commit: 3d6cfb301f0e4f1c21c2596de27446b51d8162ae 
   subdirs:
   - mxnet
+- git: https://github.com/pierric/mxnet-nn
+  commit: 6b98bf268032423e3c1c9ba5283178e23d9e2abf
+  subdirs:
+  - .
 - c2hs-extra-0.1.0.1
-- tuple-ops-0.0.0.1 
+- tuple-ops-0.0.0.1
+- streaming-utils-0.1.4.7
+allow-newer: true
 extra-include-dirs:
 - /home/jwu/incubator-mxnet/include
 - /home/jwu/incubator-mxnet/nnvm/include/
