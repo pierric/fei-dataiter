@@ -1,4 +1,4 @@
-module MXNet.Core.IO.DataIter where
+module MXNet.Core.IO.DataIter.Streaming where
 
 import Data.IORef
 import Streaming
@@ -19,7 +19,9 @@ imageRecordIter args = do
                       modifyIORef cnt (+1)
                       checked $ mxDataIterNext iter
                   if valid == 0
-                  then liftIO (readIORef cnt)
+                  then liftIO $ do
+                      checked $ mxDataIterFree iter
+                      readIORef cnt
                   else do
                       item <- liftIO $ do 
                           dat <- checked $ mxDataIterGetData  iter

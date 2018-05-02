@@ -34,7 +34,7 @@ library
       mxnet == 0.2.0.0
   exposed-modules:
       MXNet.Core.IO.Internal, 
-      MXNet.Core.IO.DataIter
+      MXNet.Core.IO.DataIter.Streaming
   other-modules:
       Paths_mxnet_dataiter
       MXNet.Core.IO.Internal.TH
@@ -42,3 +42,10 @@ library
       FlexibleContexts, DataKinds, TypeOperators
   default-language: Haskell2010
 
+test-suite streaming
+    type: exitcode-stdio-1.0
+    main-is: streaming.hs
+    hs-source-dirs: test
+    build-depends: base>=4.7 && <5, hspec==2.*, streaming >= 0.1.4.5, mxnet == 0.2.0.0, mxnet-dataiter
+    default-language: Haskell2010
+    default-extensions: FlexibleContexts, DataKinds, TypeApplications
