@@ -7,7 +7,7 @@ extra-deps:
   subdirs:
   - mxnet
 - git: https://github.com/pierric/mxnet-nn
-  commit: 6b98bf268032423e3c1c9ba5283178e23d9e2abf
+  commit: a9f62880a03e99c734e489eceac90ffebac00adf
   subdirs:
   - .
 - c2hs-extra-0.1.0.1

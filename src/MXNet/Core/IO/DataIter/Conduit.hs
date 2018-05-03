@@ -1,6 +1,10 @@
 {-# Language TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
-module MXNet.Core.IO.DataIter.Conduit where
+module MXNet.Core.IO.DataIter.Conduit (
+    ConduitData,
+    Dataset(..),
+    imageRecordIter
+) where
 
 import Data.IORef
 import Data.Conduit
@@ -15,12 +19,26 @@ import qualified MXNet.Core.IO.Internal as I
 import MXNet.NN.Types (TrainM)
 import MXNet.NN.DataIter.Class
 
-type ConduitData m a = ConduitM () (NDArray a, NDArray a) m ()
+newtype ConduitData m a = ConduitData { getConduit :: ConduitM () a m () }
 
 imageRecordIter :: (MatchKVList kvs I.ImageRecordIter_Args, ShowKV kvs, DType a, MonadIO m) => 
-                   HMap kvs -> ConduitData m a
-imageRecordIter args = do
-    iter <- liftIO (I.imageRecordIter args)
+                   HMap kvs -> ConduitData m (NDArray a, NDArray a)
+imageRecordIter = makeIter I.imageRecordIter
+
+mnistIter :: (MatchKVList kvs I.MNISTIter_Args, ShowKV kvs, DType a, MonadIO m) => 
+             HMap kvs -> ConduitData m (NDArray a, NDArray a)
+mnistIter = makeIter I.mNISTIter
+
+csvIter :: (MatchKVList kvs I.CSVIter_Args, ShowKV kvs, DType a, MonadIO m) => 
+             HMap kvs -> ConduitData m (NDArray a, NDArray a)
+csvIter = makeIter I.cSVIter
+
+libSVMIter :: (MatchKVList kvs I.LibSVMIter_Args, ShowKV kvs, DType a, MonadIO m) => 
+              HMap kvs -> ConduitData m (NDArray a, NDArray a)
+libSVMIter = makeIter I.libSVMIter
+
+makeIter creator args = ConduitData $ do
+    iter <- liftIO (creator args)
     let loop = do valid <- liftIO $ checked $ mxDataIterNext iter
                   if valid == 0
                   then liftIO (checked $ mxDataIterFree iter)
@@ -32,15 +50,10 @@ imageRecordIter args = do
                       loop
     loop
 
-type instance DatasetConstraint (ConduitData (TrainM t m1) t) m2 = m1 ~ m2
+type instance DatasetConstraint (ConduitData m1) m2 = m1 ~ m2
 
-instance Monad m => Dataset (ConduitData (TrainM t m) t) where
-    type DatType (ConduitData (TrainM t m) t) = t
-    size dat = runConduit (dat .| C.length)
-    forEach  dat proc = do
-        let index = CL.sourceList [1..]
-        sourceToList $ (getZipSource $ (,) <$> ZipSource index <*> ZipSource dat) .| CL.mapM (\(i,(x,y)) -> proc i x y)
-    forEach' dat proc = do
-        t <- size dat
-        let index = CL.sourceList [1..]
-        sourceToList $ (getZipSource $ (,) <$> ZipSource index <*> ZipSource dat) .| CL.mapM (\(i,(x,y)) -> proc (i,t) x y)
+instance Monad m => Dataset (ConduitData m) where
+    fromListD = ConduitData . CL.sourceList 
+    zipD (ConduitData d1) (ConduitData d2) = ConduitData $ getZipSource $ (,) <$> ZipSource d1 <*> ZipSource d2
+    sizeD (ConduitData dat) = runConduit (dat .| C.length)
+    forEachD (ConduitData dat) proc = sourceToList $ dat .| CL.mapM proc
