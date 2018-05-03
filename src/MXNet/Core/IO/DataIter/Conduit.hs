@@ -3,7 +3,7 @@
 module MXNet.Core.IO.DataIter.Conduit (
     ConduitData,
     Dataset(..),
-    imageRecordIter
+    imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where
 
 import Data.IORef

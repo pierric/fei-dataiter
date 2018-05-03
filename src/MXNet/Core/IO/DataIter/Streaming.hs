@@ -3,7 +3,7 @@
 module MXNet.Core.IO.DataIter.Streaming (
     StreamData,
     Dataset(..),
-    imageRecordIter
+    imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where
 
 import Data.IORef
