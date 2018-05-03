@@ -6,7 +6,8 @@
 
 name:           mxnet-dataiter
 version:        0.1.0.0
-description:    
+synopsis:       mxnet dataiters
+description:    Providing the mxnet dataiters as Stream or Conduit
 homepage:       https://github.com/pierric/mxnet-dataiter#readme
 bug-reports:    https://github.com/pierric/mxnet-dataiter/issues
 author:         Jiasen Wu
@@ -14,6 +15,7 @@ maintainer:     jiasenwu@hotmail.com
 copyright:      2018 Jiasen Wu
 license:        BSD3
 license-file:   LICENSE
+category:       Machine Learning, AI
 build-type:     Simple
 cabal-version:  >= 1.10
 
