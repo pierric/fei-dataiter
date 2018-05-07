@@ -63,3 +63,15 @@ test-suite conduit
     build-depends: base>=4.7 && <5, hspec==2.*, mxnet == 0.2.0.0, mxnet-dataiter
     default-language: Haskell2010
     default-extensions: FlexibleContexts, DataKinds, TypeApplications
+
+Executable lenet
+    main-is:                lenet.hs
+    hs-source-dirs:         examples/mnist
+    ghc-options:            -Wall
+    default-language:       Haskell2010
+    build-depends:          base >= 4.7 && < 5.0
+                          , unordered-containers >= 0.2.8
+                          , vector >= 0.12
+                          , mxnet >= 0.2.0.0
+                          , mxnet-nn
+                          , mxnet-dataiter

@@ -20,3 +20,5 @@ cabal.project.local
 .HTF/
 .vscode/
 test/data/*.rec
+test/data/train*
+test/data/test*
