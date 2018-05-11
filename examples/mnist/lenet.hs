@@ -93,26 +93,29 @@ main = do
         let trainingData = mnistIter (add @"image" "test/data/train-images-idx3-ubyte" $ 
                                       add @"label" "test/data/train-labels-idx1-ubyte" $
                                       add @"batch_size" 128 nil) :: DS
-            testingData  = mnistIter (add @"image" "test/data/t10k-images-idx3-ubyte" $ 
+        let testingData  = mnistIter (add @"image" "test/data/t10k-images-idx3-ubyte" $ 
                                       add @"label" "test/data/t10k-labels-idx1-ubyte" $
                                       add @"batch_size" 16 nil) :: DS
 
+        total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
-        forM_ (range 5) $ \ind -> do
+        forM_ (range 1) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- newMetric CrossEntropy "CrossEntropy" ["y"]
-            void $ forEachD_ni trainingData $ \((t,i), (x, y)) -> do
+            void $ forEachD_i trainingData $ \(i, (x, y)) -> do
                 liftIO $ do
                    eval <- formatMetric metric
-                   putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show t ++ " " ++ eval
+                   putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
                    hFlush stdout
                 fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
             liftIO $ putStrLn ""
         
         liftIO $ putStrLn $ "[Test] "
-        result <- forEachD_ni testingData $ \((t,i), (x, y)) -> do 
+
+        total2 <- sizeD testingData
+        result <- forEachD_i testingData $ \(i, (x, y)) -> do 
             liftIO $ do 
-                putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show t
+                putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total2
                 hFlush stdout
             [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
             ind1 <- liftIO $ A.items y
