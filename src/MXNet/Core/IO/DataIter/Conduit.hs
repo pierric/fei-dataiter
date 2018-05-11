@@ -1,7 +1,7 @@
 {-# Language TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
 module MXNet.Core.IO.DataIter.Conduit (
-    ConduitData,
+    ConduitData(..),
     Dataset(..),
     imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where

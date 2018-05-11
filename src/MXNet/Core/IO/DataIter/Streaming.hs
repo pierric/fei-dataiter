@@ -1,7 +1,7 @@
 {-# Language TypeFamilies #-}
 {-# Language FlexibleInstances #-}
 module MXNet.Core.IO.DataIter.Streaming (
-    StreamData,
+    StreamData(..),
     Dataset(..),
     imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where
