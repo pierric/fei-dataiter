@@ -22,3 +22,4 @@ cabal.project.local
 test/data/*.rec
 test/data/train*
 test/data/test*
+test/data/t10k*
