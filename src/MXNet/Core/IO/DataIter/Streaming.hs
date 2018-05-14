@@ -6,7 +6,6 @@ module MXNet.Core.IO.DataIter.Streaming (
     imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where
 
-import Data.IORef
 import Streaming
 import Streaming.Prelude (Of(..), yield, length_, toList_)
 import qualified Streaming.Prelude as S
@@ -15,7 +14,6 @@ import MXNet.Core.Base.NDArray (NDArray(..))
 import MXNet.Core.Base.Internal
 import qualified MXNet.Core.IO.Internal as I
 
-import MXNet.NN.Types (TrainM)
 import MXNet.NN.DataIter.Class
 
 newtype StreamData m a = StreamData { getStream :: Stream (Of a) m ()}
@@ -37,10 +35,8 @@ libSVMIter :: (MatchKVList kvs I.LibSVMIter_Args, ShowKV kvs, DType a, MonadIO m
 libSVMIter = makeIter I.libSVMIter
 
 makeIter creator args = StreamData $ do
-    cnt  <- liftIO (newIORef 0)
     iter <- liftIO (creator args)
     let loop = do valid <- liftIO $ do 
-                      modifyIORef cnt (+1)
                       checked $ mxDataIterNext iter
                   if valid == 0
                   then liftIO (checked $ mxDataIterFree iter)

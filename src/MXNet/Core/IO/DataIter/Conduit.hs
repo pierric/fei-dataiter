@@ -6,7 +6,6 @@ module MXNet.Core.IO.DataIter.Conduit (
     imageRecordIter, mnistIter, csvIter, libSVMIter
 ) where
 
-import Data.IORef
 import Data.Conduit
 import qualified Data.Conduit.Combinators as C
 import qualified Data.Conduit.List as CL
@@ -16,7 +15,6 @@ import MXNet.Core.Base.NDArray (NDArray(..))
 import MXNet.Core.Base.Internal
 import qualified MXNet.Core.IO.Internal as I
 
-import MXNet.NN.Types (TrainM)
 import MXNet.NN.DataIter.Class
 
 newtype ConduitData m a = ConduitData { getConduit :: ConduitM () a m () }
