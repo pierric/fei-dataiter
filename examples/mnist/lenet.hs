@@ -18,6 +18,7 @@ import MXNet.NN
 import MXNet.NN.Utils
 import MXNet.NN.Layer
 import MXNet.NN.EvalMetric
+import MXNet.NN.Initializer
 import MXNet.NN.DataIter.Class
 import MXNet.Core.IO.DataIter.Conduit
 
@@ -67,12 +68,10 @@ neural = do
 range :: Int -> [Int]
 range = enumFromTo 1
 
-default_initializer :: DType a => Initializer a
-default_initializer cxt shape = A.NDArray <$> A.random_normal 
-                                        (add @"loc" 0 $ 
-                                         add @"scale" 0.1 $ 
-                                         add @"shape" (formatShape shape) $ 
-                                         add @"ctx" (formatContext cxt) nil)
+default_initializer :: Initializer Float
+default_initializer shp@[_]   = zeros shp
+default_initializer shp@[_,_] = xavier 2.0 XavierGaussian XavierIn shp
+default_initializer shp = normal 0.1 shp
     
 main :: IO ()
 main = do
@@ -86,7 +85,7 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer 0.002 nil :: IO (ADAM Float '[])
+    optimizer <- makeOptimizer (SGD'Mom 0.0002) nil
 
     train sess $ do 
 
