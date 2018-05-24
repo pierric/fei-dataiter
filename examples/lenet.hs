@@ -15,7 +15,6 @@ import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
 import MXNet.NN
-import MXNet.NN.Utils
 import MXNet.NN.Layer
 import MXNet.NN.EvalMetric
 import MXNet.NN.Initializer
@@ -91,10 +90,10 @@ main = do
 
         let trainingData = mnistIter (add @"image" "test/data/train-images-idx3-ubyte" $ 
                                       add @"label" "test/data/train-labels-idx1-ubyte" $
-                                      add @"batch_size" 128 nil) :: DS
+                                      add @"batch_size" (128 :: Int) nil) :: DS
         let testingData  = mnistIter (add @"image" "test/data/t10k-images-idx3-ubyte" $ 
                                       add @"label" "test/data/t10k-labels-idx1-ubyte" $
-                                      add @"batch_size" 16 nil) :: DS
+                                      add @"batch_size" (16 :: Int) nil) :: DS
 
         total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
@@ -131,4 +130,4 @@ main = do
   
   where
     argmax :: ArrayF -> IO ArrayF
-    argmax ys = A.NDArray <$> A.argmax (A.getHandle ys) (add @"axis" 1 nil)
+    argmax ys = A.NDArray <$> A.argmax (A.getHandle ys) (add @"axis" (1 :: Int) nil)
