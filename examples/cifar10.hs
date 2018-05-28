@@ -25,26 +25,39 @@ type ArrayF = NDArray Float
 type SymbolF = Symbol Float
 type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
 
+-------------------------------------------------------------------------------
+-- ResNet
+-- #layer: 110
+-- #stage: 3
+-- #layer per stage: 18
+-- #filter of stage 1: 16
+-- #filter of stage 2: 32
+-- #filter of stage 3: 64
 neural :: IO SymbolF
 neural = do
     x  <- variable "x"
     y  <- variable "y"
+
     bnx <- batchnorm "bn-x" x (add @"eps" eps $ add @"momentum" bn_mom $ add @"fix_gamma" True nil)
     cvx <- convolution "conv-bn-x" bnx [3,3] 16 (add @"stride" "[1,1]" $ add @"pad" "[1,1]" $ add @"workspace" conv_workspace $ add @"no_bias" True nil)
+    
     bdy <- foldM (\layer (num_filter, stride, dim_match, name) -> residual name layer num_filter stride dim_match resargs) cvx residual'parms
+    
     bn1 <- batchnorm "bn-1" bdy (add @"eps" eps $ add @"momentum" bn_mom $ add @"fix_gamma" False nil)
     ac1 <- activation "relu-1" bn1 Relu
     pl1 <- pooling "pool-1" ac1 [7,7] PoolingAvg (add @"global_pool" True nil)
+    
     flt <- flatten "flt-1" pl1
     fc1 <- fullyConnected "fc-1" flt 10 nil
+    
     S.Symbol <$> softmaxoutput "softmax" fc1 y nil
   where
     bn_mom = 0.9 :: Float
     conv_workspace = 256 :: Int
     eps = 2e-5 :: Double
-    residual'parms = [ (16, [1,1], False, "stage1-unit1"), (16, [1,1], True, "stage1-unit2"), (16, [1,1], True, "stage1-unit3")
-                     , (32, [2,2], False, "stage2-unit1"), (32, [1,1], True, "stage2-unit2"), (32, [1,1], True, "stage2-unit3")
-                     , (64, [2,2], False, "stage3-unit1"), (64, [1,1], True, "stage3-unit2"), (64, [1,1], True, "stage3-unit3") ]
+    residual'parms =  [ (16, [1,1], False, "stage1-unit1") ] ++ map (\i -> (16, [1,1], True, "stage1-unit" ++ show i)) [2..18 :: Int]
+                   ++ [ (32, [2,2], False, "stage2-unit1") ] ++ map (\i -> (32, [1,1], True, "stage2-unit" ++ show i)) [2..18 :: Int]
+                   ++ [ (64, [2,2], False, "stage3-unit1") ] ++ map (\i -> (64, [1,1], True, "stage3-unit" ++ show i)) [2..18 :: Int]
     resargs = add @"bottle_neck" False $ add @"workspace" conv_workspace $ add @"memonger" False nil
 
 range :: Int -> [Int]
@@ -62,12 +75,12 @@ main = do
     _    <- mxListAllOpNames
     net  <- neural
     sess <- initialize net $ Config { 
-                _cfg_placeholders = M.singleton "x" [1,1,28,28],
+                _cfg_placeholders = M.singleton "x" [1,3,28,28],
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom 0.0002) nil
+    optimizer <- makeOptimizer (SGD'Mom 0.02) nil
 
     train sess $ do 
 
