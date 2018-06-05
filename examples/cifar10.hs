@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import MXNet.Core.Base (DType, NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
+import MXNet.Core.Base (NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
 import MXNet.Core.Base.HMap
 import qualified MXNet.Core.Base.NDArray as A
 import qualified MXNet.Core.Base.Internal.TH.NDArray as A
@@ -15,6 +15,7 @@ import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
 import MXNet.NN
+import MXNet.NN.Utils
 import MXNet.NN.Layer
 import MXNet.NN.EvalMetric
 import MXNet.NN.Initializer
@@ -38,7 +39,9 @@ neural = do
     x  <- variable "x"
     y  <- variable "y"
 
-    bnx <- batchnorm "bn-x" x (add @"eps" eps $ add @"momentum" bn_mom $ add @"fix_gamma" True nil)
+    xcp <- identity "id" x
+
+    bnx <- batchnorm "bn-x" xcp (add @"eps" eps $ add @"momentum" bn_mom $ add @"fix_gamma" True nil)
     cvx <- convolution "conv-bn-x" bnx [3,3] 16 (add @"stride" "[1,1]" $ add @"pad" "[1,1]" $ add @"workspace" conv_workspace $ add @"no_bias" True nil)
     
     bdy <- foldM (\layer (num_filter, stride, dim_match, name) -> residual name layer num_filter stride dim_match resargs) cvx residual'parms
@@ -64,10 +67,16 @@ range :: Int -> [Int]
 range = enumFromTo 1
 
 default_initializer :: Initializer Float
-default_initializer shp@[_]   = zeros shp
-default_initializer shp@[_,_] = xavier 2.0 XavierGaussian XavierIn shp
-default_initializer shp = normal 0.1 shp
-    
+default_initializer name shp
+    | endsWith "-bias"  name = zeros name shp
+    | endsWith "-beta"  name = zeros name shp
+    | endsWith "-gamma" name = ones  name shp
+    | endsWith "-moving-mean" name = zeros name shp
+    | endsWith "-moving-var"  name = ones  name shp
+    | otherwise = case shp of 
+                    shp@[_,_] ->  xavier 2.0 XavierGaussian XavierIn name shp
+                    _ -> normal 0.1 name shp
+
 main :: IO ()
 main = do
     -- call mxListAllOpNames can ensure the MXNet itself is properly initialized
@@ -80,13 +89,13 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom 0.02) nil
+    optimizer <- makeOptimizer (SGD'Mom 0.05) nil
 
     train sess $ do 
 
         let trainingData = imageRecordIter (add @"path_imgrec" "test/data/cifar10_train.rec" $ 
                                             add @"data_shape" ([3,28,28] :: [Int]) $
-                                            add @"batch_size" (32 :: Int) nil) :: DS
+                                            add @"batch_size" (128 :: Int) nil) :: DS
         let testingData  = imageRecordIter (add @"path_imgrec" "test/data/cifar10_val.rec" $ 
                                             add @"data_shape" ([3,28,28] :: [Int]) $
                                             add @"batch_size" (32 :: Int) nil) :: DS
