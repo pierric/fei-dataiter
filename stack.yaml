@@ -2,14 +2,16 @@ resolver: lts-10.7
 packages:
 - .
 extra-deps:
-- git: https://github.com/pierric/mxnet-haskell.git
-  commit: d6358874c45bdebc35a151ebd6e1b861acfee738 
-  subdirs:
-  - mxnet
-- git: https://github.com/pierric/mxnet-nn
-  commit: cdb99ef579d6dd5b07a83ce1422561283159c37c
-  subdirs:
-  - .
+# - git: https://github.com/pierric/mxnet-haskell.git
+#   commit: d6358874c45bdebc35a151ebd6e1b861acfee738 
+#   subdirs:
+#   - mxnet
+# - git: https://github.com/pierric/mxnet-nn
+#   commit: cdb99ef579d6dd5b07a83ce1422561283159c37c
+#   subdirs:
+#   - .
+- ../mxnet-haskell/mxnet
+- ../mxnet-nn
 - c2hs-extra-0.1.0.1
 - tuple-ops-0.0.0.1
 - streaming-utils-0.1.4.7
