@@ -86,6 +86,7 @@ Executable cifar10
     build-depends:          base >= 4.7 && < 5.0
                           , unordered-containers >= 0.2.8
                           , vector >= 0.12
+                          , optparse-applicative
                           , mxnet >= 0.2.0.0
                           , mxnet-nn
                           , mxnet-dataiter

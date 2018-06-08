@@ -14,6 +14,8 @@ import Control.Monad (forM_, void)
 import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
+import Options.Applicative
+import Data.Semigroup ((<>))
 import MXNet.NN
 import MXNet.NN.Utils
 import MXNet.NN.Utils.HMap
@@ -21,11 +23,15 @@ import MXNet.NN.EvalMetric
 import MXNet.NN.Initializer
 import MXNet.NN.DataIter.Class
 import MXNet.Core.IO.DataIter.Conduit
-import qualified Model.Resnet as Model
+import qualified Model.Resnet as Resnet
 
 type ArrayF = NDArray Float
-type SymbolF = Symbol Float
 type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
+
+data Model   = Resnet deriving (Show, Read)
+data ProgArg = ProgArg Model
+cmdArgParser :: Parser ProgArg
+cmdArgParser = ProgArg <$> (option auto $ short 'm' <> metavar "MODEL" <> showDefault <> value Resnet)
 
 range :: Int -> [Int]
 range = enumFromTo 1
@@ -43,10 +49,11 @@ default_initializer name shp
 
 main :: IO ()
 main = do
+    ProgArg model <- execParser $ info (cmdArgParser <**> helper) (fullDesc <> header "CIFAR-10 solver")
     -- call mxListAllOpNames can ensure the MXNet itself is properly initialized
     -- i.e. MXNet operators are registered in the NNVM
     _    <- mxListAllOpNames
-    net  <- Model.symbol
+    net  <- case model of Resnet -> Resnet.symbol
     sess <- initialize net $ Config { 
                 _cfg_placeholders = M.singleton "x" [1,3,28,28],
                 _cfg_initializers = M.empty,
