@@ -24,11 +24,13 @@ import MXNet.NN.Initializer
 import MXNet.NN.DataIter.Class
 import MXNet.Core.IO.DataIter.Conduit
 import qualified Model.Resnet as Resnet
+import qualified Model.Resnext as Resnext
+import MXNet.NN.Utils.GraphViz
 
 type ArrayF = NDArray Float
 type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
 
-data Model   = Resnet deriving (Show, Read)
+data Model   = Resnet | Resnext deriving (Show, Read)
 data ProgArg = ProgArg Model
 cmdArgParser :: Parser ProgArg
 cmdArgParser = ProgArg <$> (option auto $ short 'm' <> metavar "MODEL" <> showDefault <> value Resnet)
@@ -53,14 +55,16 @@ main = do
     -- call mxListAllOpNames can ensure the MXNet itself is properly initialized
     -- i.e. MXNet operators are registered in the NNVM
     _    <- mxListAllOpNames
-    net  <- case model of Resnet -> Resnet.symbol
+    net  <- case model of 
+              Resnet  -> Resnet.symbol
+              Resnext -> Resnext.symbol
     sess <- initialize net $ Config { 
                 _cfg_placeholders = M.singleton "x" [1,3,28,28],
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom 0.05) nil
+    optimizer <- makeOptimizer (SGD'Mom 0.005) nil
 
     train sess $ do 
 
