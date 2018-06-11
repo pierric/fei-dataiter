@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import MXNet.Core.Base (NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
+import MXNet.Core.Base (NDArray, contextCPU, contextGPU, mxListAllOpNames)
 import MXNet.Core.Base.HMap
 import qualified MXNet.Core.Base.NDArray as A
 import qualified MXNet.Core.Base.Internal.TH.NDArray as A
@@ -14,18 +14,15 @@ import Control.Monad (forM_, void)
 import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
-import Options.Applicative
+import Options.Applicative (Parser, execParser, header, info, fullDesc, helper, value, option, auto, metavar, short, showDefault, (<**>))
 import Data.Semigroup ((<>))
 import MXNet.NN
 import MXNet.NN.Utils
 import MXNet.NN.Utils.HMap
-import MXNet.NN.EvalMetric
-import MXNet.NN.Initializer
 import MXNet.NN.DataIter.Class
 import MXNet.Core.IO.DataIter.Conduit
 import qualified Model.Resnet as Resnet
 import qualified Model.Resnext as Resnext
-import MXNet.NN.Utils.GraphViz
 
 type ArrayF = NDArray Float
 type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
@@ -64,7 +61,7 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom 0.005) nil
+    optimizer <- makeOptimizer (SGD'Mom $ Const 0.005) nil
 
     train sess $ do 
 
