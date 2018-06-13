@@ -75,13 +75,13 @@ main = do
         liftIO $ putStrLn $ "[Train] "
         forM_ (range 1) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- newMetric CrossEntropy "CrossEntropy" ["y"]
+            metric <- metricCE ["y"] ## metricLR
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
+                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
+                eval <- format metric
                 liftIO $ do
-                   eval <- formatMetric metric
                    putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
                    hFlush stdout
-                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
             liftIO $ putStrLn ""
         
         liftIO $ putStrLn $ "[Test] "

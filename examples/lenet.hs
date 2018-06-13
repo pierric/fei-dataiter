@@ -5,7 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import MXNet.Core.Base (DType, NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
+import MXNet.Core.Base (NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
 import MXNet.Core.Base.HMap
 import qualified MXNet.Core.Base.NDArray as A
 import qualified MXNet.Core.Base.Internal.TH.NDArray as A
@@ -16,8 +16,6 @@ import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
 import MXNet.NN
 import MXNet.NN.Utils.HMap
-import MXNet.NN.EvalMetric
-import MXNet.NN.Initializer
 import MXNet.NN.DataIter.Class
 import MXNet.Core.IO.DataIter.Conduit
 import qualified Model.Lenet as Model
@@ -46,7 +44,7 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom 0.0002) nil
+    optimizer <- makeOptimizer (SGD'Mom $ Const 0.0002) nil
 
     train sess $ do 
 
@@ -61,13 +59,13 @@ main = do
         liftIO $ putStrLn $ "[Train] "
         forM_ (range 1) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- newMetric CrossEntropy "CrossEntropy" ["y"]
+            metric <- metricCE ["y"]
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
+                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
+                eval <- format metric
                 liftIO $ do
-                   eval <- formatMetric metric
                    putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
                    hFlush stdout
-                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
             liftIO $ putStrLn ""
         
         liftIO $ putStrLn $ "[Test] "
