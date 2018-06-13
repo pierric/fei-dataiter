@@ -61,7 +61,7 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom $ Const 0.005) nil
+    optimizer <- makeOptimizer (SGD'Mom $ lrOfMultifactor 0.2 [200,500] nil) nil
 
     train sess $ do 
 
