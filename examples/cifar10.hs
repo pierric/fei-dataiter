@@ -61,7 +61,7 @@ main = do
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextCPU
             }
-    optimizer <- makeOptimizer (SGD'Mom $ lrOfMultifactor 0.2 [200,500] nil) nil
+    optimizer <- makeOptimizer (SGD'Mom $ lrOfPoly 5000 [α| base := 0.002 :: Float, power := 1 :: Float |]) nil
 
     train sess $ do 
 
@@ -73,7 +73,7 @@ main = do
                                                batch_size  := 32 :: Int |]
         total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
-        forM_ (range 1) $ \ind -> do
+        forM_ (range 14) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- metricCE ["y"] ## metricLR
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
