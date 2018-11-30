@@ -1,14 +1,9 @@
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import MXNet.Core.Base (NDArray, contextCPU, contextGPU, mxListAllOpNames)
-import MXNet.Core.Base.HMap
-import qualified MXNet.Core.Base.NDArray as A
-import qualified MXNet.Core.Base.Internal.TH.NDArray as A
 import qualified Data.HashMap.Strict as M
 import Control.Monad (forM_, void)
 import qualified Data.Vector.Storable as SV
@@ -16,11 +11,13 @@ import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
 import Options.Applicative (Parser, execParser, header, info, fullDesc, helper, value, option, auto, metavar, short, showDefault, (<**>))
 import Data.Semigroup ((<>))
+
+import MXNet.Base (NDArray(..), contextCPU, contextGPU0, mxListAllOpNames, toVector, (.&), HMap(..), ArgOf(..))
+import qualified MXNet.Base.Operators.NDArray as A
 import MXNet.NN
 import MXNet.NN.Utils
-import MXNet.NN.Utils.HMap
 import MXNet.NN.DataIter.Class
-import MXNet.Core.IO.DataIter.Conduit
+import MXNet.NN.DataIter.Conduit
 import qualified Model.Resnet as Resnet
 import qualified Model.Resnext as Resnext
 
@@ -59,21 +56,21 @@ main = do
                 _cfg_placeholders = M.singleton "x" [1,3,28,28],
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
-                _cfg_context = contextCPU
+                _cfg_context = contextGPU0
             }
-    optimizer <- makeOptimizer (SGD'Mom $ lrOfPoly 5000 [α| base := 0.002 :: Float, power := 1 :: Float |]) nil
+    optimizer <- makeOptimizer ADAM (lrOfPoly $ #maxnup := 10000 .& #base := 0.0004 .& #power := 1 .& Nil) Nil
 
     train sess $ do 
 
-        let trainingData = imageRecordIter [α| path_imgrec := "test/data/cifar10_train.rec",
-                                               data_shape  := [3,28,28] :: [Int],
-                                               batch_size  := 128 :: Int |]
-        let testingData  = imageRecordIter [α| path_imgrec := "test/data/cifar10_val.rec",
-                                               data_shape  := [3,28,28] :: [Int],
-                                               batch_size  := 32 :: Int |]
+        let trainingData = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_train.rec" .&
+                                            #data_shape  := [3,28,28] .&
+                                            #batch_size  := 64 .& Nil)
+        let testingData  = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_val.rec" .&
+                                            #data_shape  := [3,28,28] .&
+                                            #batch_size  := 32 .& Nil)
         total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
-        forM_ (range 14) $ \ind -> do
+        forM_ (range 10) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- metricCE ["y"] ## metricLR
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
@@ -92,8 +89,8 @@ main = do
                 putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total2
                 hFlush stdout
             [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
-            ind1 <- liftIO $ A.items y
-            ind2 <- liftIO $ argmax y' >>= A.items
+            ind1 <- liftIO $ toVector y
+            ind2 <- liftIO $ argmax y' >>= toVector
             return (ind1, ind2)
         liftIO $ putStr "\r\ESC[K"
 
@@ -106,4 +103,4 @@ main = do
   
   where
     argmax :: ArrayF -> IO ArrayF
-    argmax ys = A.NDArray <$> A.argmax (A.getHandle ys) [α| axis := 1 :: Int |]
+    argmax (NDArray ys) = NDArray . head <$> A.argmax (#data := ys .& #axis := Just 1 .& Nil)

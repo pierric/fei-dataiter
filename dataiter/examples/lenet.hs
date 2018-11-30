@@ -5,32 +5,29 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import MXNet.Core.Base (NDArray, Symbol, contextCPU, contextGPU, mxListAllOpNames)
-import MXNet.Core.Base.HMap
-import qualified MXNet.Core.Base.NDArray as A
-import qualified MXNet.Core.Base.Internal.TH.NDArray as A
 import qualified Data.HashMap.Strict as M
 import Control.Monad (forM_, void)
 import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
 import System.IO (hFlush, stdout)
+
+import MXNet.Base (NDArray(..), contextCPU, contextGPU0, mxListAllOpNames, toVector, (.&), HMap(..), ArgOf(..))
+import qualified MXNet.Base.Operators.NDArray as A
 import MXNet.NN
-import MXNet.NN.Utils.HMap
 import MXNet.NN.DataIter.Class
-import MXNet.Core.IO.DataIter.Conduit
+import MXNet.NN.DataIter.Conduit
 import qualified Model.Lenet as Model
 
 type ArrayF = NDArray Float
-type SymbolF = Symbol Float
 type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
 
 range :: Int -> [Int]
 range = enumFromTo 1
 
 default_initializer :: Initializer Float
-default_initializer shp@[_]   = zeros shp
-default_initializer shp@[_,_] = xavier 2.0 XavierGaussian XavierIn shp
-default_initializer shp = normal 0.1 shp
+default_initializer name shp@[_]   = zeros name shp
+default_initializer name shp@[_,_] = xavier 2.0 XavierGaussian XavierIn name shp
+default_initializer name shp = normal 0.1 name shp
     
 main :: IO ()
 main = do
@@ -42,18 +39,18 @@ main = do
                 _cfg_placeholders = M.singleton "x" [1,1,28,28],
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
-                _cfg_context = contextCPU
+                _cfg_context = contextGPU0
             }
-    optimizer <- makeOptimizer (SGD'Mom $ Const 0.0002) nil
+    optimizer <- makeOptimizer SGD'Mom (Const 0.0002) Nil
 
     train sess $ do 
 
-        let trainingData = mnistIter [α| image := "test/data/train-images-idx3-ubyte",
-                                         label := "test/data/train-labels-idx1-ubyte",
-                                         batch_size := 128 :: Int |] :: DS
-        let testingData  = mnistIter [α| image := "test/data/t10k-images-idx3-ubyte",
-                                         label := "test/data/t10k-labels-idx1-ubyte",
-                                         batch_size := 16 :: Int  |] :: DS
+        let trainingData = mnistIter (#image := "dataiter/test/data/train-images-idx3-ubyte" .&
+                                      #label := "dataiter/test/data/train-labels-idx1-ubyte" .& 
+                                      #batch_size := 128 .& Nil)
+        let testingData  = mnistIter (#image := "dataiter/test/data/t10k-images-idx3-ubyte" .&
+                                      #label := "dataiter/test/data/t10k-labels-idx1-ubyte" .&
+                                      #batch_size := 16  .& Nil)
 
         total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
@@ -76,8 +73,8 @@ main = do
                 putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total2
                 hFlush stdout
             [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
-            ind1 <- liftIO $ A.items y
-            ind2 <- liftIO $ argmax y' >>= A.items
+            ind1 <- liftIO $ toVector y
+            ind2 <- liftIO $ argmax y' >>= toVector
             return (ind1, ind2)
         liftIO $ putStr "\r\ESC[K"
 
@@ -90,4 +87,4 @@ main = do
   
   where
     argmax :: ArrayF -> IO ArrayF
-    argmax ys = A.NDArray <$> A.argmax (A.getHandle ys) [α| axis := 1 :: Int |]
+    argmax (NDArray ys) = NDArray . head <$> A.argmax (#data := ys .& #axis := Just 1 .& Nil)

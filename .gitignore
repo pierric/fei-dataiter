@@ -19,7 +19,6 @@ cabal.sandbox.config
 cabal.project.local
 .HTF/
 .vscode/
-test/data/*.rec
-test/data/train*
-test/data/test*
-test/data/t10k*
+*.rec
+train-*-ubyte
+t10k-*-ubyte
