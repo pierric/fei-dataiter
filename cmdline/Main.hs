@@ -23,7 +23,7 @@ data Arguments = Arguments {
 }
 
 args_spec = Arguments 
-         <$> strOption (long "output" <> short 'o' <> value "dataiters" <> metavar "OUTPUT-DIR")
+         <$> strOption (long "output" <> short 'o' <> value "dataiter/src" <> metavar "OUTPUT-DIR")
 
 main = do
     updateGlobalLogger _module_ (setLevel INFO)
@@ -145,8 +145,8 @@ resolveHaskellType argname desc =
                     other -> error ("cannot parse type description: " ++ str)
 
     fields = runP desc
-    optional = ParamDescItem "optional" `elem` fields
-    attr = tyCon $ unQual $ name $ if optional then "AttrOpt" else "AttrReq"
+    required = ParamDescItem "required" `elem` fields
+    attr = tyCon $ unQual $ name $ if required then "AttrReq" else "AttrOpt"
     scalar hstyp = tell ([], [(argname, attr, hstyp)])
     fail msg   = tell ([(argname, msg)], [])
 
