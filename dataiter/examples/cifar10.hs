@@ -50,27 +50,27 @@ main = do
     -- i.e. MXNet operators are registered in the NNVM
     _    <- mxListAllOpNames
     net  <- case model of 
-              Resnet  -> Resnet.symbol
+              Resnet  -> Resnet.symbol 10 34 [3,32,32]
               Resnext -> Resnext.symbol
     sess <- initialize net $ Config { 
-                _cfg_placeholders = M.singleton "x" [1,3,28,28],
+                _cfg_placeholders = M.singleton "x" [1,3,32,32],
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextGPU0
             }
-    optimizer <- makeOptimizer ADAM (lrOfPoly $ #maxnup := 10000 .& #base := 0.0004 .& #power := 1 .& Nil) Nil
+    optimizer <- makeOptimizer ADAM (lrOfPoly $ #maxnup := 10000 .& #base := 0.05 .& #power := 1 .& Nil) Nil
 
     train sess $ do 
 
         let trainingData = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_train.rec" .&
-                                            #data_shape  := [3,28,28] .&
-                                            #batch_size  := 64 .& Nil)
+                                            #data_shape  := [3,32,32] .&
+                                            #batch_size  := 128 .& Nil)
         let testingData  = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_val.rec" .&
-                                            #data_shape  := [3,28,28] .&
+                                            #data_shape  := [3,32,32] .&
                                             #batch_size  := 32 .& Nil)
         total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
-        forM_ (range 10) $ \ind -> do
+        forM_ (range 18) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- metricCE ["y"] ## metricLR
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do

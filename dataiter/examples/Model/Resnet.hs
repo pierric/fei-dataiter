@@ -7,21 +7,66 @@
 module Model.Resnet (symbol) where
 
 import Control.Monad (foldM, when, void)
+import Control.Exception.Base (Exception, throw, throwIO)
 import Data.Maybe (fromMaybe)
+import Data.Typeable (Typeable)
 
 import MXNet.Base
 import MXNet.NN.Layer
 
+data NoKnownExperiment = NoKnownExperiment Int
+    deriving (Typeable, Show)
+instance Exception NoKnownExperiment
+
 -------------------------------------------------------------------------------
 -- ResNet
--- #layer: 110
--- #stage: 3
--- #layer per stage: 18
--- #filter of stage 1: 16
--- #filter of stage 2: 32
--- #filter of stage 3: 64
-symbol :: DType a => IO (Symbol a)
-symbol = do
+
+symbol :: DType a => Int -> Int -> [Int] -> IO (Symbol a)
+symbol num_classes num_layers image_shape@[_, height, _] =
+    if height <= 28 then do
+        handle <- if (num_layers - 2) `mod` 9 == 0 && num_layers >= 164 then
+                      resnet $ 
+                        #image_shape := image_shape .& 
+                        #num_classes := num_classes .& 
+                        #num_stages := 3 .& 
+                        #filter_list := [64, 64, 128, 256] .& 
+                        #units := replicate 3 ((num_layers - 2) `div` 9) .& 
+                        #bottle_neck := True .& 
+                        #workspace := 256 .& Nil
+                  else if (num_layers - 2) `mod` 6 == 0 && num_layers < 164 then
+                      resnet $
+                        #image_shape := image_shape .& 
+                        #num_classes := num_classes .& 
+                        #num_stages := 3 .& 
+                        #filter_list := [64, 64, 32, 64] .& 
+                        #units := replicate 3 ((num_layers - 2) `div` 6) .& 
+                        #bottle_neck := False .& 
+                        #workspace := 256 .& Nil
+                  else
+                      throwIO $ NoKnownExperiment num_layers
+        return $ Symbol handle
+    else do
+        handle <- resnet $ #image_shape := image_shape .& #num_classes := num_classes .& #num_stages := 4 .& case num_layers of
+          18  -> #filter_list := [64, 64, 128, 256, 512] .& #units := [2,2,2,2] .& #bottle_neck := False .& #workspace := 256 .& Nil
+          34  -> #filter_list := [64, 64, 128, 256, 512] .& #units := [3,4,6,3] .& #bottle_neck := False .& #workspace := 256 .& Nil
+          50  -> #filter_list := [64, 256, 512, 1024, 2048] .& #units := [3,4,6,3]   .& #bottle_neck := True .& #workspace := 256 .& Nil
+          101 -> #filter_list := [64, 256, 512, 1024, 2048] .& #units := [3,4,23,3]  .& #bottle_neck := True .& #workspace := 256 .& Nil
+          152 -> #filter_list := [64, 256, 512, 1024, 2048] .& #units := [3,8,36,3]  .& #bottle_neck := True .& #workspace := 256 .& Nil
+          200 -> #filter_list := [64, 256, 512, 1024, 2048] .& #units := [3,24,36,3] .& #bottle_neck := True .& #workspace := 256 .& Nil
+          269 -> #filter_list := [64, 256, 512, 1024, 2048] .& #units := [3,30,48,8] .& #bottle_neck := True .& #workspace := 256 .& Nil
+          _   -> throw $ NoKnownExperiment num_layers
+        return $ Symbol handle
+
+type instance ParameterList "resnet" = 
+  '[ '("num_classes", 'AttrReq Int)
+   , '("num_stages" , 'AttrReq Int)
+   , '("filter_list", 'AttrReq [Int])
+   , '("units"      , 'AttrReq [Int])
+   , '("bottle_neck", 'AttrReq Bool)
+   , '("workspace"  , 'AttrReq Int) 
+   , '("image_shape", 'AttrReq [Int])]
+resnet :: (Fullfilled "resnet" args) => ArgsHMap "resnet" args -> IO SymbolHandle
+resnet args = do
     x  <- variable "x"
     y  <- variable "y"
 
@@ -33,22 +78,44 @@ symbol = do
             #eps := eps .& 
             #momentum := bn_mom .& 
             #fix_gamma := True .& Nil)
-    cvx <- convolution "conv-bn-x" (
-            #data := bnx .& 
-            #kernel := [3,3] .& 
-            #num_filter := 16 .& 
-            #stride := [1,1] .& 
-            #pad := [1,1] .& 
-            #workspace := conv_workspace .& 
-            #no_bias := True .& Nil)
+
+    let [_, height, _] = args ! #image_shape
+        filter0 : filter_list = args ! #filter_list
+    bdy <- if height <= 32 
+             then
+                convolution "conv-bn-x" (
+                          #data      := bnx .& 
+                          #kernel    := [3,3] .& 
+                          #num_filter:= filter0 .& 
+                          #stride    := [1,1] .& 
+                          #pad       := [1,1] .& 
+                          #workspace := conv_workspace .& 
+                          #no_bias   := True .& Nil)
+             else do
+                bdy <- convolution "conv-bn-x" (
+                          #data      := bnx .& 
+                          #kernel    := [7,7] .& 
+                          #num_filter:= filter0 .& 
+                          #stride    := [2,2] .& 
+                          #pad       := [3,3] .& 
+                          #workspace := conv_workspace .& 
+                          #no_bias   := True .& Nil)
+                bdy <- batchnorm "bn-0" (
+                          #data      := bdy .&
+                          #fix_gamma := False .&
+                          #eps       := eps .&
+                          #momentum  := bn_mom .& Nil)
+                bdy <- activation "relu0" (
+                          #data      := bdy .&
+                          #act_type  := #relu .& Nil)
+                pooling "max" (
+                          #data      := bdy .&
+                          #kernel    := [3,3] .&
+                          #stride    := [2,2] .&
+                          #pad       := [1,1] .&
+                          #pool_type := #max .& Nil)
     
-    bdy <- foldM (\layer (num_filter, stride, dim_match, name) -> 
-                    residual name (#data       := layer .&
-                                   #num_filter := num_filter .&
-                                   #stride     := stride .&
-                                   #dim_match  := dim_match .& resargs))
-                 cvx 
-                 residual'parms              
+    bdy <- foldM build_layer bdy (zip3 [0::Int ..] filter_list (args ! #units))
     
     bn1 <- batchnorm "bn-1" (
             #data := bdy .& 
@@ -68,19 +135,24 @@ symbol = do
             #data := pl1 .& Nil)
     fc1 <- fullyConnected "fc-1" (
             #data := flt .& 
-            #num_hidden := 10 .& Nil)
+            #num_hidden := args ! #num_classes .& Nil)
     
-    Symbol <$> softmaxoutput "softmax" (
+    softmaxoutput "softmax" (
             #data := fc1 .& 
             #label := y .& Nil)
   where
     bn_mom = 0.9 :: Float
     conv_workspace = 256 :: Int
     eps = 2e-5 :: Double
-    residual'parms =  [ (16, [1,1], False, "stage1-unit1") ] ++ map (\i -> (16, [1,1], True, "stage1-unit" ++ show i)) [2..18 :: Int]
-                   ++ [ (32, [2,2], False, "stage2-unit1") ] ++ map (\i -> (32, [1,1], True, "stage2-unit" ++ show i)) [2..18 :: Int]
-                   ++ [ (64, [2,2], False, "stage3-unit1") ] ++ map (\i -> (64, [1,1], True, "stage3-unit" ++ show i)) [2..18 :: Int]
-    resargs = #bottle_neck := False .& #workspace := conv_workspace .& #memonger := False .& Nil
+
+    build_layer bdy (stage_id, filter_size, unit) = do
+        let stride0 = if stage_id == 0 then [1,1] else [2,2]
+            name unit_id = "stage" ++ show stage_id ++ "_unit" ++ show unit_id
+            resargs = #bottle_neck := False .& #workspace := conv_workspace .& #memonger := False .& Nil
+        bdy <- residual (name 0) (#data := bdy .& #num_filter := filter_size .& #stride := stride0 .& #dim_match := False .& resargs)
+        foldM (\bdy unit_id -> 
+                residual (name unit_id) (#data := bdy .& #num_filter := filter_size .& #stride := [1,1] .& #dim_match := True .& resargs))
+              bdy [1..unit]
 
 type instance ParameterList "_residual_layer(resnet)" = 
   '[ '("data"       , 'AttrReq SymbolHandle)
