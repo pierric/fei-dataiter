@@ -53,3 +53,4 @@ instance Monad m => Dataset (ConduitData m) where
     zipD (ConduitData d1) (ConduitData d2) = ConduitData $ getZipSource $ (,) <$> ZipSource d1 <*> ZipSource d2
     sizeD (ConduitData dat) = runConduit (dat .| C.length)
     forEachD (ConduitData dat) proc = sourceToList $ dat .| CL.mapM proc
+    foldD (ConduitData dat) elem proc = runConduit (dat .| C.foldM proc elem)

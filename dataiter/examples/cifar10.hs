@@ -78,29 +78,19 @@ main = do
                 eval <- format metric
                 liftIO $ do
                    putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
-                   hFlush stdout
-            liftIO $ putStrLn ""
-        
-        liftIO $ putStrLn $ "[Test] "
+                   hFlush stdout                   
+            liftIO $ putStrLn "\nValidate"
+            validate net testingData
 
-        total2 <- sizeD testingData
-        result <- forEachD_i testingData $ \(i, (x, y)) -> do 
-            liftIO $ do 
-                putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total2
-                hFlush stdout
-            [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
-            ind1 <- liftIO $ toVector y
-            ind2 <- liftIO $ argmax y' >>= toVector
-            return (ind1, ind2)
-        liftIO $ putStr "\r\ESC[K"
-
-        let (ls,ps) = unzip result
-            ls_unbatched = mconcat ls
-            ps_unbatched = mconcat ps
-            total_test_items = SV.length ls_unbatched
-            correct = SV.length $ SV.filter id $ SV.zipWith (==) ls_unbatched ps_unbatched
-        liftIO $ putStrLn $ "Accuracy: " ++ show correct ++ "/" ++ show total_test_items
-  
+validate net dat = do
+    (c,n) <- foldD dat (0,0) $ \ (num_corr, num_tot) (x, y) -> do 
+        [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
+        ind1 <- liftIO $ toVector y
+        ind2 <- liftIO $ toVector =<< argmax y' 1
+        let new_corr = SV.length $ SV.filter id $ SV.zipWith (==) ind1 ind2
+            new_inst = SV.length ind1
+        return (num_corr + new_corr, num_tot + new_inst)
+    liftIO $ putStrLn $ "Accuracy: " ++ show (fromIntegral c / fromIntegral n)
   where
-    argmax :: ArrayF -> IO ArrayF
-    argmax (NDArray ys) = NDArray . head <$> A.argmax (#data := ys .& #axis := Just 1 .& Nil)
+    argmax :: ArrayF -> Int -> IO ArrayF
+    argmax (NDArray ys) axis = NDArray . head <$> A.argmax (#data := ys .& #axis := Just axis .& Nil)

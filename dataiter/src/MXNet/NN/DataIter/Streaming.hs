@@ -53,3 +53,4 @@ instance Monad m => Dataset (StreamData m) where
     zipD s1 s2 = StreamData $ S.zip (getStream s1) (getStream s2)
     sizeD = length_ . getStream
     forEachD dat proc = toList_ $ void $ S.mapM proc (getStream dat)
+    foldD dat elem proc = S.foldM_ proc (return elem) return (getStream dat)
