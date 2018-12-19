@@ -72,7 +72,7 @@ main = do
         liftIO $ putStrLn $ "[Train] "
         forM_ (range 18) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- metricCE ["y"] ## metricLR
+            metric <- mCE ["y"] ## mACC ["y"] ## mLR
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
                 fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
                 eval <- format metric
