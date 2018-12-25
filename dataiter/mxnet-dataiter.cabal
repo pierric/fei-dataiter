@@ -97,6 +97,7 @@ Executable cifar10
                       , unordered-containers >= 0.2.8
                       , vector >= 0.12
                       , optparse-applicative
+                      , lens >= 4.12
                       , mxnet-base
                       , mxnet-ops
                       , mxnet-nn >= 0.0.2 && < 0.0.3

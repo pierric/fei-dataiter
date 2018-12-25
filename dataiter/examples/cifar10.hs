@@ -8,6 +8,7 @@ import qualified Data.HashMap.Strict as M
 import Control.Monad (forM_, void)
 import qualified Data.Vector.Storable as SV
 import Control.Monad.IO.Class
+import Control.Lens ((%~))
 import System.IO (hFlush, stdout)
 import Options.Applicative (Parser, execParser, header, info, fullDesc, helper, value, option, auto, metavar, short, showDefault, (<**>))
 import Data.Semigroup ((<>))
@@ -17,12 +18,12 @@ import qualified MXNet.Base.Operators.NDArray as A
 import MXNet.NN
 import MXNet.NN.Utils
 import MXNet.NN.DataIter.Class
-import MXNet.NN.DataIter.Conduit
+import MXNet.NN.DataIter.Streaming
 import qualified Model.Resnet as Resnet
 import qualified Model.Resnext as Resnext
 
 type ArrayF = NDArray Float
-type DS = ConduitData (TrainM Float IO) (ArrayF, ArrayF)
+type DS = StreamData (TrainM Float IO) (ArrayF, ArrayF)
 
 data Model   = Resnet | Resnext deriving (Show, Read)
 data ProgArg = ProgArg Model
@@ -57,7 +58,11 @@ main = do
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextGPU0
-            }
+            } 
+
+    cbTP <- dumpThroughputEpoch
+    sess <- return $ (sess_callbacks %~ ([Callback DumpLearningRate, cbTP] ++)) sess
+    
     optimizer <- makeOptimizer ADAM (lrOfPoly $ #maxnup := 10000 .& #base := 0.05 .& #power := 1 .& Nil) Nil
 
     train sess $ do 
@@ -68,17 +73,11 @@ main = do
         let testingData  = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_val.rec" .&
                                             #data_shape  := [3,32,32] .&
                                             #batch_size  := 32 .& Nil)
-        total1 <- sizeD trainingData
         liftIO $ putStrLn $ "[Train] "
         forM_ (range 18) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- mCE ["y"] ## mACC ["y"] ## mLR
-            void $ forEachD_i trainingData $ \(i, (x, y)) -> do
-                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
-                eval <- format metric
-                liftIO $ do
-                   putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
-                   hFlush stdout                   
+            metric <- mCE ["y"] ## mACC ["y"]
+            fitDataset optimizer net ["x", "y"] trainingData metric
             liftIO $ putStrLn "\nValidate"
             validate net testingData
 

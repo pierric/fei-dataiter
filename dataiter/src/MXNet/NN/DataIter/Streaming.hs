@@ -54,3 +54,4 @@ instance Monad m => Dataset (StreamData m) where
     sizeD = length_ . getStream
     forEachD dat proc = toList_ $ void $ S.mapM proc (getStream dat)
     foldD dat elem proc = S.foldM_ proc (return elem) return (getStream dat)
+    takeD n dat = toList_ $ S.take n (getStream dat)

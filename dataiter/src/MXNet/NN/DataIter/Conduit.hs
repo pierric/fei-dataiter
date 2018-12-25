@@ -54,3 +54,4 @@ instance Monad m => Dataset (ConduitData m) where
     sizeD (ConduitData dat) = runConduit (dat .| C.length)
     forEachD (ConduitData dat) proc = sourceToList $ dat .| CL.mapM proc
     foldD (ConduitData dat) elem proc = runConduit (dat .| C.foldM proc elem)
+    takeD n (ConduitData dat) = connect dat (CL.take n)
