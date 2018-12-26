@@ -58,7 +58,7 @@ main = do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- mCE ["y"]
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
-                fitAndEval optimizer net (M.fromList [("x", x), ("y", y)]) metric
+                fitAndEval optimizer (M.fromList [("x", x), ("y", y)]) metric
                 eval <- format metric
                 liftIO $ do
                    putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total1 ++ " " ++ eval
@@ -72,7 +72,7 @@ main = do
             liftIO $ do 
                 putStr $ "\r\ESC[K" ++ show i ++ "/" ++ show total2
                 hFlush stdout
-            [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
+            [y'] <- forwardOnly (M.fromList [("x", Just x), ("y", Nothing)])
             ind1 <- liftIO $ toVector y
             ind2 <- liftIO $ argmax y' >>= toVector
             return (ind1, ind2)

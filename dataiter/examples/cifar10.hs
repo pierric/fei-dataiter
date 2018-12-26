@@ -77,13 +77,13 @@ main = do
         forM_ (range 18) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
             metric <- mCE ["y"] ## mACC ["y"]
-            fitDataset optimizer net ["x", "y"] trainingData metric
+            fitDataset optimizer ["x", "y"] trainingData metric
             liftIO $ putStrLn "\nValidate"
-            validate net testingData
+            validate testingData
 
-validate net dat = do
+validate dat = do
     (c,n) <- foldD dat (0,0) $ \ (num_corr, num_tot) (x, y) -> do 
-        [y'] <- forwardOnly net (M.fromList [("x", Just x), ("y", Nothing)])
+        [y'] <- forwardOnly (M.fromList [("x", Just x), ("y", Nothing)])
         ind1 <- liftIO $ toVector y
         ind2 <- liftIO $ toVector =<< argmax y' 1
         let new_corr = SV.length $ SV.filter id $ SV.zipWith (==) ind1 ind2
