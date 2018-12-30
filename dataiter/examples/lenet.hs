@@ -36,7 +36,8 @@ main = do
     _    <- mxListAllOpNames
     net  <- Model.symbol
     sess <- initialize net $ Config { 
-                _cfg_placeholders = M.singleton "x" [1,1,28,28],
+                _cfg_data = ("x", [1,28,28]),
+                _cfg_label = ("y", [1]),
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextGPU0
@@ -56,7 +57,7 @@ main = do
         liftIO $ putStrLn $ "[Train] "
         forM_ (range 1) $ \ind -> do
             liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- mCE ["y"]
+            metric <- newMetric "train" CrossEntropy
             void $ forEachD_i trainingData $ \(i, (x, y)) -> do
                 fitAndEval optimizer (M.fromList [("x", x), ("y", y)]) metric
                 eval <- format metric

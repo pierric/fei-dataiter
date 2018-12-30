@@ -54,14 +54,15 @@ main = do
               Resnet  -> Resnet.symbol 10 34 [3,32,32]
               Resnext -> Resnext.symbol
     sess <- initialize net $ Config { 
-                _cfg_placeholders = M.singleton "x" [1,3,32,32],
+                _cfg_data = ("x", [3,32,32]),
+                _cfg_label = ("y", [1]),
                 _cfg_initializers = M.empty,
                 _cfg_default_initializer = default_initializer,
                 _cfg_context = contextGPU0
             } 
 
     cbTP <- dumpThroughputEpoch
-    sess <- return $ (sess_callbacks %~ ([Callback DumpLearningRate, cbTP] ++)) sess
+    sess <- return $ (sess_callbacks %~ ([Callback DumpLearningRate, cbTP, Callback (Checkpoint "tmp")] ++)) sess
     
     optimizer <- makeOptimizer ADAM (lrOfPoly $ #maxnup := 10000 .& #base := 0.05 .& #power := 1 .& Nil) Nil
 
@@ -73,23 +74,4 @@ main = do
         let testingData  = imageRecordIter (#path_imgrec := "dataiter/test/data/cifar10_val.rec" .&
                                             #data_shape  := [3,32,32] .&
                                             #batch_size  := 32 .& Nil)
-        liftIO $ putStrLn $ "[Train] "
-        forM_ (range 18) $ \ind -> do
-            liftIO $ putStrLn $ "iteration " ++ show ind
-            metric <- mCE ["y"] ## mACC ["y"]
-            fitDataset optimizer ["x", "y"] trainingData metric
-            liftIO $ putStrLn "\nValidate"
-            validate testingData
-
-validate dat = do
-    (c,n) <- foldD dat (0,0) $ \ (num_corr, num_tot) (x, y) -> do 
-        [y'] <- forwardOnly (M.fromList [("x", Just x), ("y", Nothing)])
-        ind1 <- liftIO $ toVector y
-        ind2 <- liftIO $ toVector =<< argmax y' 1
-        let new_corr = SV.length $ SV.filter id $ SV.zipWith (==) ind1 ind2
-            new_inst = SV.length ind1
-        return (num_corr + new_corr, num_tot + new_inst)
-    liftIO $ putStrLn $ "Accuracy: " ++ show (fromIntegral c / fromIntegral n)
-  where
-    argmax :: ArrayF -> Int -> IO ArrayF
-    argmax (NDArray ys) axis = NDArray . head <$> A.argmax (#data := ys .& #axis := Just axis .& Nil)
+        fitDataset optimizer trainingData testingData (CrossEntropy :+ Accuracy :+ MNil) 18
