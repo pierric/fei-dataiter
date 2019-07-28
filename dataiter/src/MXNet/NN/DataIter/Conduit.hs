@@ -1,5 +1,6 @@
-{-# Language TypeFamilies #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module MXNet.NN.DataIter.Conduit (
     ConduitData(..),
     Dataset(..),
@@ -9,31 +10,47 @@ module MXNet.NN.DataIter.Conduit (
 import Data.Conduit
 import qualified Data.Conduit.Combinators as C
 import qualified Data.Conduit.List as CL
+import Control.Applicative
 import Control.Monad.IO.Class
 
 import MXNet.Base
 import qualified MXNet.NN.DataIter.Raw as I
 import MXNet.NN.DataIter.Class
 
-newtype ConduitData m a = ConduitData { getConduit :: ConduitM () a m () }
+data ConduitData m a = ConduitData {
+    iter_batch_size :: Maybe Int,
+    getConduit :: ConduitM () a m () 
+}
 
 imageRecordIter :: (Fullfilled "ImageRecordIter" args, DType a, MonadIO m) 
     => ArgsHMap "ImageRecordIter" args -> ConduitData m (NDArray a, NDArray a)
-imageRecordIter = makeIter I._ImageRecordIter
+imageRecordIter args = ConduitData { 
+    getConduit = makeIter I._ImageRecordIter args, 
+    iter_batch_size = Just (args ! #batch_size)
+}
 
 mnistIter :: (Fullfilled "MNISTIter" args, DType a, MonadIO m) 
     => ArgsHMap "MNISTIter" args -> ConduitData m (NDArray a, NDArray a)
-mnistIter = makeIter I._MNISTIter
+mnistIter args = ConduitData { 
+    getConduit = makeIter I._MNISTIter args, 
+    iter_batch_size = (args !? #batch_size) <|> Just 1
+}
 
 csvIter :: (Fullfilled "CSVIter" args, DType a, MonadIO m) 
     => ArgsHMap "CSVIter" args -> ConduitData m (NDArray a, NDArray a)
-csvIter = makeIter I._CSVIter
+csvIter args = ConduitData { 
+    getConduit = makeIter I._CSVIter args, 
+    iter_batch_size = Just (args ! #batch_size)
+}
 
 libSVMIter :: (Fullfilled "LibSVMIter" args, DType a, MonadIO m) 
     => ArgsHMap "LibSVMIter" args -> ConduitData m (NDArray a, NDArray a)
-libSVMIter = makeIter I._LibSVMIter
+libSVMIter args = ConduitData { 
+    getConduit = makeIter I._LibSVMIter args, 
+    iter_batch_size = Just (args ! #batch_size)
+}
 
-makeIter creator args = ConduitData $ do
+makeIter creator args = do
     iter <- liftIO (creator args)
     let loop = do valid <- liftIO $ mxDataIterNext iter
                   if valid == 0
@@ -49,9 +66,12 @@ makeIter creator args = ConduitData $ do
 type instance DatasetConstraint (ConduitData m1) m2 = m1 ~ m2
 
 instance Monad m => Dataset (ConduitData m) where
-    fromListD = ConduitData . CL.sourceList 
-    zipD (ConduitData d1) (ConduitData d2) = ConduitData $ getZipSource $ (,) <$> ZipSource d1 <*> ZipSource d2
-    sizeD (ConduitData dat) = runConduit (dat .| C.length)
-    forEachD (ConduitData dat) proc = sourceToList $ dat .| CL.mapM proc
-    foldD (ConduitData dat) elem proc = runConduit (dat .| C.foldM proc elem)
-    takeD n (ConduitData dat) = connect dat (CL.take n)
+    fromListD = ConduitData Nothing . CL.sourceList 
+    zipD d1 d2 = ConduitData Nothing $ getZipSource $ (,) <$> ZipSource (getConduit d1) <*> ZipSource (getConduit d2)
+    sizeD d = runConduit (getConduit d .| C.length)
+    forEachD d proc = sourceToList $ getConduit d .| CL.mapM proc
+    foldD proc elem d = runConduit (getConduit d .| C.foldM proc elem)
+    takeD n d = connect (getConduit d) (CL.take n)
+
+instance DatasetProp (ConduitData m) a where
+    batchSizeD = return . iter_batch_size

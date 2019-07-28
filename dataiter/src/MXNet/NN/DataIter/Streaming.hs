@@ -1,5 +1,6 @@
-{-# Language TypeFamilies #-}
-{-# Language FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module MXNet.NN.DataIter.Streaming (
     StreamData(..),
     Dataset(..),
@@ -14,25 +15,41 @@ import MXNet.Base
 import qualified MXNet.NN.DataIter.Raw as I
 import MXNet.NN.DataIter.Class
 
-newtype StreamData m a = StreamData { getStream :: Stream (Of a) m ()}
+data StreamData m a = StreamData { 
+    iter_batch_size :: Maybe Int,
+    getStream :: Stream (Of a) m ()
+}
 
 imageRecordIter :: (Fullfilled "ImageRecordIter" args, DType a, MonadIO m) 
     => ArgsHMap "ImageRecordIter" args -> StreamData m (NDArray a, NDArray a)
-imageRecordIter = makeIter I._ImageRecordIter
+imageRecordIter args = StreamData { 
+    getStream = makeIter I._ImageRecordIter args,
+    iter_batch_size = Just (args ! #batch_size)
+}
 
 mnistIter :: (Fullfilled "MNISTIter" args, DType a, MonadIO m) 
     => ArgsHMap "MNISTIter" args -> StreamData m (NDArray a, NDArray a)
-mnistIter = makeIter I._MNISTIter
+mnistIter args = StreamData { 
+    getStream = makeIter I._MNISTIter args,
+    iter_batch_size = (args !? #batch_size) <|> Just 1
+}
 
 csvIter :: (Fullfilled "CSVIter" args, DType a, MonadIO m) 
     => ArgsHMap "CSVIter" args -> StreamData m (NDArray a, NDArray a)
-csvIter = makeIter I._CSVIter
+csvIter args = StreamData { 
+    getStream = makeIter I._CSVIter args,
+    iter_batch_size = Just (args ! #batch_size)
+}
 
 libSVMIter :: (Fullfilled "LibSVMIter" args, DType a, MonadIO m) 
     => ArgsHMap "LibSVMIter" args -> StreamData m (NDArray a, NDArray a)
-libSVMIter = makeIter I._LibSVMIter
+libSVMIter args = StreamData { 
+    getStream = makeIter I._LibSVMIter args,
+    iter_batch_size = Just (args ! #batch_size)
+}
+    
 
-makeIter creator args = StreamData $ do
+makeIter creator args = do
     iter <- liftIO (creator args)
     let loop = do valid <- liftIO $ mxDataIterNext iter
                   if valid == 0
@@ -49,9 +66,13 @@ makeIter creator args = StreamData $ do
 type instance DatasetConstraint (StreamData m1) m2 = m1 ~ m2
 
 instance Monad m => Dataset (StreamData m) where
-    fromListD = StreamData . S.each
-    zipD s1 s2 = StreamData $ S.zip (getStream s1) (getStream s2)
+    fromListD = StreamData Nothing . S.each
+    zipD s1 s2 = StreamData Nothing $ S.zip (getStream s1) (getStream s2)
     sizeD = length_ . getStream
     forEachD dat proc = toList_ $ void $ S.mapM proc (getStream dat)
-    foldD dat elem proc = S.foldM_ proc (return elem) return (getStream dat)
+    foldD proc elem dat = S.foldM_ proc (return elem) return (getStream dat)
     takeD n dat = toList_ $ S.take n (getStream dat)
+
+instance DatasetProp (StreamData m) a where
+    batchSizeD = return . iter_batch_size
+    
