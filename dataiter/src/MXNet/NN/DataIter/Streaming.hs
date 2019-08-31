@@ -71,7 +71,7 @@ instance Monad m => Dataset (StreamData m) where
     sizeD = length_ . getStream
     forEachD dat proc = toList_ $ void $ S.mapM proc (getStream dat)
     foldD proc elem dat = S.foldM_ proc (return elem) return (getStream dat)
-    takeD n dat = toList_ $ S.take n (getStream dat)
+    takeD n dat = dat { getStream = S.take n (getStream dat) }
 
 instance DatasetProp (StreamData m) a where
     batchSizeD = return . iter_batch_size

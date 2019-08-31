@@ -71,7 +71,7 @@ instance Monad m => Dataset (ConduitData m) where
     sizeD d = runConduit (getConduit d .| C.length)
     forEachD d proc = sourceToList $ getConduit d .| CL.mapM proc
     foldD proc elem d = runConduit (getConduit d .| C.foldM proc elem)
-    takeD n d = connect (getConduit d) (CL.take n)
+    takeD n d = d {getConduit = getConduit d .| C.take n}
 
 instance DatasetProp (ConduitData m) a where
     batchSizeD = return . iter_batch_size
